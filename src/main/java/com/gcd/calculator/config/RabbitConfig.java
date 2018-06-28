@@ -23,37 +23,56 @@ import org.springframework.context.annotation.Configuration;
 @EnableRabbit
 @ComponentScan(basePackages = "{com.gcd.calculator.controller}")
 public class RabbitConfig {    
-    @Value("${messaging.rabbit.url}")
-    private String hostUrl;
+    @Value("${messaging.rabbit.host.url}")
+    String hostUrl;
+    
+    @Value("${messaging.rabbit.host.port}")
+    int hostPort;
+    
+    @Value("${messaging.rabbit.host.user}")
+    String hostUser;
+    
+    @Value("${messaging.rabbit.host.password}")
+    String hostPassword;
     
     @Value("${messaging.exchange.name}")
-    private String exchangeName;
+    String exchangeName;
     
-    @Value("${messaging.sender.key}")
-    private String senderRoutingKey;
+    @Value("${messaging.exchange.durable}")
+    boolean exchangeDurable;
     
-    @Value("${messaging.sender.queue}")
-    private String senderQueue;
+    @Value("${messaging.exchange.autodelete}")
+    boolean exchangeAutoDelete;
+    @Value("${messaging.queue.task.name}")
+    String taskQueueName;
     
-    @Value("${messaging.reciever.key}")
-    private String recieverRoutingKey;
+    @Value("${messaging.queue.task.durable}")
+    boolean taskQueueDurable;
     
-    @Value("${messaging.reciever.queue}")
-    private String recieverQueue;
+    @Value("${messaging.queue.task.binding.key}")
+    String taskQueueBindingKey;
+    
+    
+    @Value("${messaging.queue.result.name}")
+    String resultQueueName;
+    
+    @Value("${messaging.queue.result.durable}")
+    boolean resultQueueDurable;
+    
+    @Value("${messaging.queue.result.binding.key}")
+    String resultQueueBindingKey;
     
     @Value("${messaging.reciever.maxConcurrentConsumers}")
-    private int maxConcurrentConsumers;
+    int recieverMaxConcurrentConsumers;
     
-    @Value("${messaging.reciever.incoming.class}")
-    private String mappableMessageClassName;
     
     @Bean
     public ConnectionFactory connectionFactory() {
         CachingConnectionFactory connectionFactory =
             new CachingConnectionFactory(hostUrl);
-        connectionFactory.setUsername("guest");
-        connectionFactory.setPassword("guest");
-        connectionFactory.setPort(5672);
+        connectionFactory.setUsername(hostUser);
+        connectionFactory.setPassword(hostPassword);
+        connectionFactory.setPort(hostPort);
         return connectionFactory;
     }
 
@@ -72,36 +91,36 @@ public class RabbitConfig {
     
     @Bean
     public DirectExchange exchange() {
-        return new DirectExchange(exchangeName, true, false);
+        return new DirectExchange(exchangeName, exchangeDurable, exchangeAutoDelete);
     } 
     
     @Bean
     public Queue taskQueue() {
-       return new Queue(recieverQueue,true);
+       return new Queue(taskQueueName, taskQueueDurable);
     }
     
     @Bean
     public Queue resultQueue() {
-        return new Queue(senderQueue, true);
+        return new Queue(resultQueueName, resultQueueDurable);
     }
     
     @Bean
     public ResultSender resultSender() {
-        return new ResultSender(senderRoutingKey);
+        return new ResultSender(resultQueueBindingKey);
     }
     
     @Bean
     public Binding bindingTask(DirectExchange exchange, Queue taskQueue) {
-        return BindingBuilder.bind(taskQueue)
+        return BindingBuilder.bind(taskQueue())
                 .to(exchange)
-                .with(recieverRoutingKey);
+                .with(taskQueueBindingKey);
     }
     
     @Bean
     public Binding bindingResult(DirectExchange exchange, Queue resultQueue) {
         return BindingBuilder.bind(resultQueue())
                 .to(exchange)
-                .with(senderRoutingKey);
+                .with(resultQueueBindingKey);
     }
     
     @Bean
@@ -110,7 +129,7 @@ public class RabbitConfig {
                 = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory());
         factory.setIdleEventInterval(60000L);
-        factory.setMaxConcurrentConsumers(maxConcurrentConsumers);
+        factory.setMaxConcurrentConsumers(recieverMaxConcurrentConsumers);
         factory.setMessageConverter(jackson2MessageConverter());
         factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         factory.setDefaultRequeueRejected(Boolean.FALSE);
